@@ -1,3 +1,5 @@
+NOTE: This is [Expo](http://expo.io)'s fork without the `'sqlite3'` dependency which is unused in React Native.
+
 node-websql [![Build Status](https://travis-ci.org/nolanlawson/node-websql.svg?branch=master)](https://travis-ci.org/nolanlawson/node-websql) [![Coverage Status](https://coveralls.io/repos/github/nolanlawson/node-websql/badge.svg?branch=master&nonce=foo)](https://coveralls.io/github/nolanlawson/node-websql?branch=master)
 ====
 

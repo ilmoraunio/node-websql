@@ -1,6 +1,6 @@
 {
-  "name": "websql",
-  "version": "0.4.4",
+  "name": "@expo/websql",
+  "version": "1.0.1",
   "description": "WebSQL Database API, implemented for Node using sqlite3",
   "repository": {
     "type": "git",

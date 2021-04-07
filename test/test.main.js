@@ -578,6 +578,27 @@ describe('basic test suite', function () {
       assert.equal(result, 0);
     });
   });
+
+  it('manually override auto-commit - readTransaction (not supported)', () => {
+    var db = openDatabase(':memory:', '1.0', 'yolo', 100000);
+    var called = [];
+
+    return new Promise(function (resolve, reject) {
+      db.readTransaction((txn) => {
+        resolve(txn);
+      }, error => {
+        reject(error);
+        return true;
+      });
+    }).then((txn) => {
+        txn.setAutoCommit(false);
+        called.push("b");
+      }).catch((error) => {
+        called.push("a");
+      }).finally((_) => {
+        assert.deepEqual(called, ["a"]);
+      });
+  });
 });
 
 function transactionPromise(db, sql, sqlArgs) {

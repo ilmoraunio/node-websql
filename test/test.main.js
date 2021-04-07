@@ -15,6 +15,20 @@ function expectError(promise) {
   });
 }
 
+function execute(txn, sql, params) {
+  return new Promise(function (resolve, reject) {
+    txn.executeSql(sql,
+                   params,
+                   (_tx, result) => {
+                     resolve(result);
+                   },
+                   (_tx, error) => {
+                     reject(error);
+                     return true;
+                   });
+  });
+}
+
 describe('basic test suite', function () {
 
   this.timeout(60000);
@@ -429,6 +443,141 @@ describe('basic test suite', function () {
     assert.equal(db.version, '1.0');
   });
 
+  it('manually override auto-commit', () => {
+    var db = openDatabase(':memory:', '1.0', 'yolo', 100000);
+
+    return new Promise(function (resolve, reject) {
+      db.transaction((txn) => {
+        resolve(txn);
+      }, error => {
+        reject(error);
+        return true;
+      });
+    }).then((txn) => {
+        txn.setAutoCommit(false);
+        return execute(txn, "SELECT 42 as foo", [])
+          .then((result) => {
+            return result.rows.item(0).foo;
+          }).then((result) => {
+            txn.commit();
+            return result;
+          });
+      }).then((result) => {
+        assert.equal(result, 42);
+      });
+  });
+
+  it('manually override auto-commit - insert', () => {
+    var db = openDatabase(':memory:', '1.0', 'yolo', 100000);
+
+    return new Promise((resolve, reject) => {
+      db.transaction(function (txn) {
+        txn.executeSql('CREATE TABLE test (val integer)', [], () => {});
+      }, reject, resolve);
+    }).then((_result) => {
+      return new Promise(function (resolve, reject) {
+        db.transaction((txn) => {
+          resolve(txn);
+        }, error => {
+          reject(error);
+          return true;
+        });
+      }).then((txn) => {
+        txn.setAutoCommit(false);
+        return execute(txn, "INSERT INTO test (val) VALUES (1)", [])
+          .then((result) => {
+            return execute(txn, "INSERT INTO test (val) VALUES (1)", [])
+          }).then((result) => {
+            return execute(txn, "SELECT COUNT(*) as foo FROM test", [])
+          }).then((result) => {
+            return result.rows.item(0).foo;
+          }).then((result) => {
+            txn.commit();
+            return result;
+          }).catch((error) => {
+            txn.rollback();
+          });
+      }).then((result) => {
+        assert.equal(result, 2);
+      });
+    });
+  });
+
+  it('manually override auto-commit - rollback', () => {
+    var db = openDatabase(':memory:', '1.0', 'yolo', 100000);
+
+    var txn = (db) => {
+      return new Promise(function (resolve, reject) {
+        db.transaction((txn) => {
+          resolve(txn);
+        }, error => {
+          reject(error);
+          return true;
+        });
+      });
+    }
+
+    return new Promise((resolve, reject) => {
+      db.transaction((txn) => {
+        txn.executeSql('CREATE TABLE test (val integer)', [], () => {});
+      }, reject, resolve);
+    }).then((_) => {
+      return txn(db).then((txn) => {
+        txn.setAutoCommit(false);
+        return execute(txn, "INSERT INTO test (val) VALUES (1)", [])
+          .then((result) => {
+            return execute(txn, "INSERT INTO boom (val) VALUES (2)", [])
+          }).catch((error) => {
+            txn.rollback(error);
+          });
+      });
+    }).then((_) => {
+      return txn(db).then((txn) => {
+        txn.setAutoCommit(false);
+        return execute(txn, "INSERT INTO test (val) VALUES (1)", [])
+          .then((result) => {
+            throw new Error("boom");
+          }).catch((error) => {
+            txn.rollback(error);
+          });
+      });
+    }).then((_) => {
+      return txn(db).then((txn) => {
+        txn.setAutoCommit(false);
+        return new Promise((resolve, reject) => {
+          throw new Error("boom");
+        }).then((_result) => {
+          return execute(txn, "INSERT INTO test (val) VALUES (1)", []);
+        }).catch((error) => {
+          txn.rollback(error);
+        });
+      });
+    }).then((_) => {
+      return txn(db).then((txn) => {
+        txn.setAutoCommit(false);
+        return new Promise((resolve, reject) => {
+          throw new Error("boom");
+        }).then((_result) => {
+          return execute(txn, "INSERT INTO test (val) VALUES (1)", []);
+        }).catch((error) => {
+          txn.rollback(error);
+        });
+      });
+    }).then((_) => {
+      return txn(db).then((txn) => {
+        txn.setAutoCommit(false);
+        return execute(txn, "SELECT COUNT(*) as foo FROM test", [])
+        .then((result) => {
+          return result.rows.item(0).foo;
+        }).then((result) => {
+          txn.commit();
+          return result;
+        });
+      });
+    }).then((result) => {
+      assert.equal(result, 0);
+    });
+  });
 });
 
 function transactionPromise(db, sql, sqlArgs) {
